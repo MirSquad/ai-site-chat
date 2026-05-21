@@ -1,4 +1,4 @@
-# AI Site Chat
+# AI Site Chat WordPress Plugin
 
 A WordPress plugin that adds an AI-powered floating chat widget to your site. Visitors can ask questions and get answers based on your published content, powered by Claude (Anthropic).
 
