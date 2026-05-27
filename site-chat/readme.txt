@@ -33,7 +33,7 @@ Site Chat indexes your published posts, pages, and custom post types, then uses 
 
 **Third-party service**
 
-This plugin sends your site's published content and visitor questions to the Anthropic API. Please review [Anthropic's privacy policy](https://www.anthropic.com/privacy) and [terms of service](https://www.anthropic.com/legal/consumer-terms) before activating. No visitor data is stored by this plugin.
+This plugin sends your site's published content and visitor questions to the Anthropic API. Please review [Anthropic's privacy policy](https://www.anthropic.com/privacy) and [terms of service](https://www.anthropic.com/legal/consumer-terms) before activating. When conversation logging is enabled (the default), visitor questions and AI answers are stored in your site's database.
 
 == Installation ==
 
@@ -55,7 +55,7 @@ All published posts, pages, and public custom post types. Private posts, drafts,
 
 = Does the plugin store visitor questions or answers? =
 
-No. Questions are sent to the Anthropic API and responses are returned in real time. Nothing is stored by this plugin.
+Optionally. When **Log conversations** is enabled in Settings > AI Site Chat, questions and AI answers are stored in your site's database and visible only to admins. Logging is on by default — disable it if you prefer not to store visitor conversations.
 
 = Can I customize what the AI says? =
 
@@ -63,7 +63,7 @@ Yes. Use the **Custom Instructions** field in Settings > Site Chat to add person
 
 = What if my site has a lot of content? =
 
-The plugin caps the context sent to the API at 80,000 characters. If your site is very large, the most recently updated content will be included first and older content may be truncated.
+The plugin caps the context sent to the API at 200,000 characters. If your site is very large, the most recently updated content will be included first and older content may be truncated. Developers can also use the `site_chat_context_posts_limit` filter to cap posts per type.
 
 = Can I change the rate limit? =
 

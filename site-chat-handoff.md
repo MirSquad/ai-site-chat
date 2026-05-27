@@ -3,7 +3,7 @@ title: "Site Chat — Handoff Doc"
 doc_type: handoff
 project: site-chat
 created: 2026-03-28
-updated: 2026-04-21
+updated: 2026-05-25
 status: active
 summary: "Current state snapshot for the Site Chat plugin. Read before any session."
 tags: [wordpress, plugin, ai, anthropic, miriamschwab-site, chat]
@@ -14,11 +14,17 @@ blog_candidate: false
 
 ## Current state
 
-**Version:** 2.3.0  
+**Version:** 2.3.0 (bump to 2.4.0 before next packaging)
 **Status:** Installed and working on miriamschwab.me  
 **Last zip:** `site-chat-2.3.0.zip`
 
 Plugin is live, tested, and confirmed working: chat widget, Q&A logging, rate limit email, follow-up CTAs with Contact and Newsletter links, content caching.
+
+**Session 4 changes (code quality, no user-visible behaviour change):**
+- Deactivation hook added — deletes `site_chat_context_cache` transient on deactivation
+- `plugin_row_meta` filter — adds "Visit plugin site" link in the Plugins list
+- Developer filter `site_chat_context_posts_limit` for capping posts per type in bulk queries
+- `readme.txt` FAQ answers corrected to match current code (logging opt-in wording, 200K limit, filter)
 
 ---
 

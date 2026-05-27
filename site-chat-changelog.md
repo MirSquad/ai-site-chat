@@ -3,7 +3,7 @@ title: "Site Chat — Changelog"
 doc_type: changelog
 project: site-chat
 created: 2026-03-28
-updated: 2026-04-21
+updated: 2026-05-25
 status: active
 summary: "Session-by-session history of the Site Chat plugin: what changed, decisions made, dead ends, and what's next."
 tags: [wordpress, plugin, ai, anthropic, miriamschwab-site, chat]
@@ -109,3 +109,43 @@ Bug fixes and two feature additions through v2.1.0–v2.3.0. All confirmed worki
 
 - Consider writing a blog post about building this plugin (blog_candidate: true)
 - Monitor Anthropic API costs now that the plugin is in active use
+
+---
+
+## Session 4 — 2026-05-25
+
+### WP.org readiness and code quality audit
+
+Targeted fixes for WP.org readiness, bulk query safety, and readme accuracy. No new user-visible features.
+
+**Deactivation hook added:**
+- `register_deactivation_hook` now calls `site_chat_deactivate()` which deletes the `site_chat_context_cache` transient
+- Prevents a stale cache from persisting after the plugin is deactivated and re-activated on a new version
+
+**`plugin_row_meta` filter added:**
+- Adds a "Visit plugin site" link to the plugin row in the Plugins list, pointing to `https://miriamschwab.me/plugins/site-chat`
+
+**Bulk query — developer filter added:**
+- `get_posts()` in `site_chat_get_context()` now respects `apply_filters('site_chat_context_posts_limit', -1, $type)`
+- Allows developers to cap posts-per-type without editing core plugin code
+
+**Nonce/cache comment added:**
+- Inline comment documents why cached nonces work for unauthenticated visitors (WP nonce validation is not session-specific for logged-out users; rate limiting is the primary abuse defence)
+
+**`readme.txt` FAQ corrected:**
+- "Does the plugin store visitor questions?" — corrected from "No" wording to "Optionally. When Log conversations is enabled..." (logging was added in v2.0.0)
+- Context size: updated from 80,000 to 200,000 characters and mentioned the `site_chat_context_posts_limit` filter
+- Removed stale "No visitor data is stored" clause from the third-party service disclosure
+
+**`.gitignore` updated:**
+- Replaced single-name pillar doc patterns with wildcards (`*-handoff.md`, `*-changelog.md`, etc.)
+
+### Decisions made
+
+- Version not bumped this session (all compliance/quality fixes, no user-visible behaviour change). Bump to 2.4.0 before next packaging.
+
+### What's next
+
+- Bump version to 2.4.0 before next zip is packaged
+- Blog post consideration unchanged (blog_candidate: true)
+- Monitor Anthropic API costs

@@ -23,10 +23,15 @@ define( 'SITE_CHAT_MAX_CONTEXT_CHARS', 200000 );
 define( 'SITE_CHAT_MAX_POST_CONTENT_CHARS', 1500 );
 
 // ---------------------------------------------------------------------------
-// Activation — create log table
+// Activation / deactivation
 // ---------------------------------------------------------------------------
 
 register_activation_hook( __FILE__, 'site_chat_activate' );
+register_deactivation_hook( __FILE__, 'site_chat_deactivate' );
+
+function site_chat_deactivate() {
+	delete_transient( 'site_chat_context_cache' );
+}
 
 function site_chat_activate() {
 	global $wpdb;
@@ -78,6 +83,14 @@ add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), function ( $li
 	array_unshift( $links, $settings_link );
 	return $links;
 } );
+
+add_filter( 'plugin_row_meta', function( $links, $file ) {
+	if ( plugin_basename( __FILE__ ) !== $file ) {
+		return $links;
+	}
+	$links[] = '<a href="' . esc_url( 'https://miriamschwab.me/plugins/site-chat' ) . '" target="_blank">' . esc_html__( 'Visit plugin site', 'site-chat' ) . '</a>';
+	return $links;
+}, 10, 2 );
 
 // Ensure DB table exists — runs dbDelta once per version bump, covers installs that
 // bypassed the activation hook (e.g. manual file replacement during updates).
@@ -452,10 +465,20 @@ function site_chat_get_context() {
 		$type_obj   = get_post_type_object( $type );
 		$type_label = $type_obj ? $type_obj->labels->singular_name : $type;
 
+		/**
+		 * Filters the maximum posts fetched per post type when building the AI context index.
+		 * Set to a lower number on large sites to prevent memory exhaustion or timeouts.
+		 * Default -1 fetches all published posts of that type.
+		 *
+		 * @param int    $limit     Posts per page. -1 for all.
+		 * @param string $post_type The post type being queried.
+		 */
+		$per_type_limit = (int) apply_filters( 'site_chat_context_posts_limit', -1, $type );
+
 		$posts = get_posts( [
 			'post_type'        => $type,
 			'post_status'      => 'publish',
-			'posts_per_page'   => -1,
+			'posts_per_page'   => $per_type_limit,
 			'orderby'          => 'date',
 			'order'            => 'DESC',
 			'suppress_filters' => false,
@@ -575,6 +598,10 @@ add_action( 'rest_api_init', function () {
 
 function site_chat_handle_ask( WP_REST_Request $request ) {
 
+	// wp_rest nonce is embedded in the page via wp_footer. For unauthenticated visitors
+	// this provides anti-CSRF protection but is shared across all page cache copies —
+	// cached nonces still validate correctly because WP's nonce validation for logged-out
+	// users is not session-specific. Rate limiting below is the primary abuse defence.
 	$nonce = isset( $_SERVER['HTTP_X_WP_NONCE'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_WP_NONCE'] ) ) : '';
 	if ( ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
 		return new WP_Error( 'forbidden', __( 'Invalid request.', 'site-chat' ), [ 'status' => 403 ] );
