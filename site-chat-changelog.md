@@ -149,3 +149,31 @@ Targeted fixes for WP.org readiness, bulk query safety, and readme accuracy. No 
 - Bump version to 2.4.0 before next zip is packaged
 - Blog post consideration unchanged (blog_candidate: true)
 - Monitor Anthropic API costs
+
+---
+
+## Session 5 — 2026-05-31
+
+### What was built
+
+- **Bug fix:** "Cookie check failed" error shown when a logged-in user sent a chat message from a cached page.
+
+### Root cause
+
+WordPress's `rest_cookie_check_errors()` fires on every REST request. When the browser sends an `X-WP-Nonce` header, WP tries to authenticate via cookies + that nonce. On a cached page, the `wp_rest` nonce baked into the JS can be stale (nonces rotate every 12 hours). A stale nonce with active WP cookies → WP returns "Cookie check failed" before the plugin's handler even runs.
+
+### Fix
+
+- Changed nonce action from `wp_rest` to `site_chat_ask`
+- Removed `X-WP-Nonce` header from the JS fetch — nonce now sent as `nonce` field in the POST JSON body
+- PHP handler reads nonce from `$request->get_param('nonce')` and verifies against `site_chat_ask`
+- With no `X-WP-Nonce` header, WP skips cookie authentication entirely; the plugin's own nonce check still provides anti-CSRF protection
+
+### Decisions made
+
+- Version bumped to 2.4.0 (first zip produced this session)
+
+### What's next
+
+- Blog post consideration unchanged
+- Monitor Anthropic API costs

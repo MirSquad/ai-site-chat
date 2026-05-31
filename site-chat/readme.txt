@@ -4,7 +4,7 @@ Tags: ai, chat, chatbot, claude, anthropic
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.3.0
+Stable tag: 2.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -79,6 +79,9 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 2. Settings > Site Chat — API key, rate limit, and custom instructions.
 
 == Changelog ==
+
+= 2.4.0 =
+* Fixed: "Cookie check failed" error shown to logged-in users when the page cache serves a stale nonce — nonce now uses a custom action and is sent in the request body instead of the X-WP-Nonce header, bypassing WordPress cookie authentication entirely.
 
 = 2.3.0 =
 * Added: Content index caching — site content is cached for 12 hours so database queries run once per cache period rather than on every chat request.

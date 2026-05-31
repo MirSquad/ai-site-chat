@@ -14,9 +14,9 @@ blog_candidate: false
 
 ## Current state
 
-**Version:** 2.3.0 (bump to 2.4.0 before next packaging)
+**Version:** 2.4.0
 **Status:** Installed and working on miriamschwab.me  
-**Last zip:** `site-chat-2.3.0.zip`
+**Last zip:** `site-chat-2.4.0.zip`
 
 Plugin is live, tested, and confirmed working: chat widget, Q&A logging, rate limit email, follow-up CTAs with Contact and Newsletter links, content caching.
 

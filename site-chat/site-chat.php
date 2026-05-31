@@ -3,7 +3,7 @@
  * Plugin Name:       AI Site Chat
  * Plugin URI:        https://miriamschwab.me/plugins/site-chat
  * Description:       Adds an AI-powered floating chat widget to your site. Visitors can ask questions and get answers based on your published content, powered by Claude.
- * Version:           2.3.0
+ * Version:           2.4.0
  * Author:            Miriam Schwab
  * Author URI:        https://miriamschwab.me
  * License:           GPL-2.0-or-later
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SITE_CHAT_VERSION', '2.3.0' );
+define( 'SITE_CHAT_VERSION', '2.4.0' );
 define( 'SITE_CHAT_MAX_CONTEXT_CHARS', 200000 );
 define( 'SITE_CHAT_MAX_POST_CONTENT_CHARS', 1500 );
 
@@ -598,12 +598,12 @@ add_action( 'rest_api_init', function () {
 
 function site_chat_handle_ask( WP_REST_Request $request ) {
 
-	// wp_rest nonce is embedded in the page via wp_footer. For unauthenticated visitors
-	// this provides anti-CSRF protection but is shared across all page cache copies —
-	// cached nonces still validate correctly because WP's nonce validation for logged-out
-	// users is not session-specific. Rate limiting below is the primary abuse defence.
-	$nonce = isset( $_SERVER['HTTP_X_WP_NONCE'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_WP_NONCE'] ) ) : '';
-	if ( ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
+	// Custom nonce passed in the request body (not X-WP-Nonce header) so WordPress does
+	// not attempt cookie authentication via rest_cookie_check_errors(), which would return
+	// "Cookie check failed" when a cached page serves a stale wp_rest nonce to a logged-in
+	// user. Rate limiting below is the primary abuse defence.
+	$nonce = sanitize_text_field( (string) $request->get_param( 'nonce' ) );
+	if ( ! wp_verify_nonce( $nonce, 'site_chat_ask' ) ) {
 		return new WP_Error( 'forbidden', __( 'Invalid request.', 'site-chat' ), [ 'status' => 403 ] );
 	}
 
@@ -724,7 +724,7 @@ add_action( 'wp_footer', function () {
 		return;
 	}
 
-	$nonce            = wp_create_nonce( 'wp_rest' );
+	$nonce            = wp_create_nonce( 'site_chat_ask' );
 	$rest_url         = esc_url( rest_url( 'site-chat/v1/ask' ) );
 	$welcome_text     = esc_js( __( 'Ask me anything about this site', 'site-chat' ) );
 	$contact_url      = esc_js( get_option( 'site_chat_contact_url', '' ) );
@@ -1240,8 +1240,8 @@ add_action( 'wp_footer', function () {
 
 		fetch('<?php echo $rest_url; ?>', {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': '<?php echo esc_js( $nonce ); ?>' },
-			body: JSON.stringify({ question: q })
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ question: q, nonce: '<?php echo esc_js( $nonce ); ?>' })
 		})
 		.then(function (res) { return res.json().then(function (d) { return { ok: res.ok, data: d }; }); })
 		.then(function (r) {
