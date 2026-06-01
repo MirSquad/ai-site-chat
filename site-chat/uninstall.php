@@ -11,6 +11,7 @@ delete_option( 'site_chat_post_types' );
 delete_option( 'site_chat_log_enabled' );
 delete_option( 'site_chat_contact_url' );
 delete_option( 'site_chat_newsletter_url' );
+delete_option( 'site_chat_write_abilities' );
 delete_option( 'site_chat_db_version' );
 delete_transient( 'site_chat_context_cache' );
 

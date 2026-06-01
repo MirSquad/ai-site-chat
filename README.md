@@ -61,3 +61,26 @@ You'll need an [Anthropic API key](https://console.anthropic.com/) — the plugi
 ## License
 
 GPL-2.0-or-later
+
+## WordPress Abilities API
+
+This plugin exposes abilities for the [WordPress Abilities API](https://developer.wordpress.org/apis/abilities-api/) (WordPress 6.9+), making it manageable by AI agents via the [MCP Adapter](https://github.com/WordPress/mcp-adapter) plugin.
+
+### Requirements
+
+- WordPress 6.9+
+- [MCP Adapter plugin](https://github.com/WordPress/mcp-adapter)
+
+### Available abilities
+
+| Ability | Access | Description |
+|---|---|---|
+| `site-chat/get-settings` | Always on | Returns all plugin settings. The API key is masked — only the last 4 characters are returned |
+| `site-chat/get-logs` | Always on | Returns recent chat conversations ordered newest first. Accepts `per_page` (1–100, default 20) |
+| `site-chat/update-settings` | Write (opt-in) | Updates one or more settings. Pass only the fields you want to change. The API key cannot be changed via this ability |
+
+**Updatable fields via `update-settings`:** `enabled`, `rate_limit`, `custom_instructions`, `log_enabled`, `contact_url`, `newsletter_url`
+
+### Enabling write abilities
+
+Write abilities are disabled by default. To enable them, go to **Settings > AI Site Chat** and check **Enable write abilities** under the Abilities API row.

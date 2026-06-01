@@ -3,7 +3,7 @@
  * Plugin Name:       AI Site Chat
  * Plugin URI:        https://miriamschwab.me/plugins/site-chat
  * Description:       Adds an AI-powered floating chat widget to your site. Visitors can ask questions and get answers based on your published content, powered by Claude.
- * Version:           2.4.0
+ * Version:           2.5.2
  * Author:            Miriam Schwab
  * Author URI:        https://miriamschwab.me
  * License:           GPL-2.0-or-later
@@ -18,9 +18,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SITE_CHAT_VERSION', '2.4.0' );
+define( 'SITE_CHAT_VERSION', '2.5.2' );
 define( 'SITE_CHAT_MAX_CONTEXT_CHARS', 200000 );
 define( 'SITE_CHAT_MAX_POST_CONTENT_CHARS', 1500 );
+
+require_once plugin_dir_path( __FILE__ ) . 'includes/abilities.php';
 
 // ---------------------------------------------------------------------------
 // Activation / deactivation
@@ -154,6 +156,9 @@ add_action( 'admin_init', function () {
 		'sanitize_callback' => function ( $val ) {
 			return esc_url_raw( mb_substr( $val, 0, 500 ) );
 		},
+	] );
+	register_setting( 'site_chat', 'site_chat_write_abilities', [
+		'sanitize_callback' => 'rest_sanitize_boolean',
 	] );
 } );
 
@@ -304,6 +309,17 @@ function site_chat_settings_page() {
 							value="<?php echo esc_attr( get_option( 'site_chat_newsletter_url', '' ) ); ?>"
 							class="regular-text" placeholder="https://example.com/newsletter/" />
 						<p class="description"><?php esc_html_e( 'Optional. When a visitor says they\'re done chatting, a "Subscribe to newsletter" button will appear linking here.', 'site-chat' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Abilities API', 'site-chat' ); ?></th>
+					<td>
+						<label>
+							<input type="checkbox" name="site_chat_write_abilities" value="1"
+								<?php checked( 1, get_option( 'site_chat_write_abilities', 0 ) ); ?> />
+							<?php esc_html_e( 'Enable write abilities (update settings via AI agents)', 'site-chat' ); ?>
+						</label>
+						<p class="description"><?php esc_html_e( 'Allow AI agents to update chat settings via the WordPress Abilities API. Read access (settings and logs) is always enabled. Requires WordPress 6.9+.', 'site-chat' ); ?></p>
 					</td>
 				</tr>
 			</table>
