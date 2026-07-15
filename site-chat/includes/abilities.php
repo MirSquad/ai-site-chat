@@ -3,9 +3,9 @@
  * WordPress Abilities API integration for AI Site Chat.
  * Requires WP 6.9+ (Abilities API). Does nothing on older versions.
  *
- * Read abilities are always registered.
- * Write abilities are only registered when "Enable write abilities" is on
- * in Settings > AI Site Chat.
+ * All abilities are always registered. The write ability is marked
+ * destructive, so compliant AI tools must prompt for confirmation
+ * before running it.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -40,6 +40,10 @@ function site_chat_register_abilities() {
 		'label'       => __( 'Get Settings', 'site-chat' ),
 		'description' => __( 'Retrieve AI Site Chat settings. The API key is masked — only the last four characters are returned.', 'site-chat' ),
 		'category'    => 'site-chat',
+		'input_schema' => array(
+			'type'       => 'object',
+			'properties' => array(),
+		),
 		'output_schema' => array(
 			'type'       => 'object',
 			'properties' => array(
@@ -130,11 +134,7 @@ function site_chat_register_abilities() {
 		),
 	) );
 
-	// --- Write abilities (gated by option) --------------------------------
-
-	if ( ! get_option( 'site_chat_write_abilities', false ) ) {
-		return;
-	}
+	// --- update-settings (always available, destructive) ------------------
 
 	wp_register_ability( 'site-chat/update-settings', array(
 		'label'       => __( 'Update Settings', 'site-chat' ),
@@ -204,7 +204,7 @@ function site_chat_register_abilities() {
 			'mcp'         => array( 'public' => true ),
 			'annotations'  => array(
 				'readonly'    => false,
-				'destructive' => false,
+				'destructive' => true,
 				'idempotent'  => false,
 			),
 		),

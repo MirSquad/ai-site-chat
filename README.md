@@ -77,10 +77,6 @@ This plugin exposes abilities for the [WordPress Abilities API](https://develope
 |---|---|---|
 | `site-chat/get-settings` | Always on | Returns all plugin settings. The API key is masked — only the last 4 characters are returned |
 | `site-chat/get-logs` | Always on | Returns recent chat conversations ordered newest first. Accepts `per_page` (1–100, default 20) |
-| `site-chat/update-settings` | Write (opt-in) | Updates one or more settings. Pass only the fields you want to change. The API key cannot be changed via this ability |
+| `site-chat/update-settings` | Always on (destructive) | Updates one or more settings. Pass only the fields you want to change. The API key cannot be changed via this ability. AI tools will ask for confirmation before running. |
 
 **Updatable fields via `update-settings`:** `enabled`, `rate_limit`, `custom_instructions`, `log_enabled`, `contact_url`, `newsletter_url`
-
-### Enabling write abilities
-
-Write abilities are disabled by default. To enable them, go to **Settings > AI Site Chat** and check **Enable write abilities** under the Abilities API row.

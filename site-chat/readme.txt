@@ -4,7 +4,7 @@ Tags: ai, chat, chatbot, claude, anthropic
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.4.0
+Stable tag: 2.5.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -26,6 +26,7 @@ Site Chat indexes your published posts, pages, and custom post types, then uses 
 * Custom instructions field — add persona, tone, or topic emphasis
 * Responsive — collapses to icon-only on small screens
 * Accessibility-friendly — ARIA roles, keyboard navigation, focus management
+* WordPress Abilities API integration — lets AI agents read settings/logs and update settings (requires WordPress 6.9+)
 
 **Requirements**
 
@@ -34,6 +35,14 @@ Site Chat indexes your published posts, pages, and custom post types, then uses 
 **Third-party service**
 
 This plugin sends your site's published content and visitor questions to the Anthropic API. Please review [Anthropic's privacy policy](https://www.anthropic.com/privacy) and [terms of service](https://www.anthropic.com/legal/consumer-terms) before activating. When conversation logging is enabled (the default), visitor questions and AI answers are stored in your site's database.
+
+**WordPress Abilities API**
+
+This plugin exposes the following abilities for the [WordPress Abilities API](https://developer.wordpress.org/apis/abilities-api/) (WordPress 6.9+), discoverable by AI agents via the [MCP Adapter](https://github.com/WordPress/mcp-adapter) plugin:
+
+* `site-chat/get-settings` — Read-only. Returns all plugin settings, with the API key masked (last 4 characters only).
+* `site-chat/get-logs` — Read-only. Returns recent chat conversations, newest first.
+* `site-chat/update-settings` — Updates one or more settings (the API key cannot be changed via this ability). Marked destructive, so compliant AI tools must ask for confirmation before running it.
 
 == Installation ==
 
@@ -79,6 +88,26 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 2. Settings > Site Chat — API key, rate limit, and custom instructions.
 
 == Changelog ==
+
+= 2.5.5 =
+* Fixed: Chat no longer returns "Invalid request" on CDN/full-page-cached sites. The request nonce was baked into cached HTML that edge caches hold for days, but WordPress nonces expire in 12-24 hours, so the stale nonce failed verification. Removed the nonce entirely — this is a public, read-only, unauthenticated endpoint where a nonce adds no CSRF protection; the IP rate limiter remains the abuse defence.
+
+= 2.5.4 =
+* Fixed: `site-chat/get-settings` ability now declares an empty `input_schema`. Its absence caused MCP clients' ability-introspection calls to fail with a schema-validation error before the ability could ever be invoked (execution itself was unaffected).
+
+= 2.5.3 =
+* Changed: `site-chat/update-settings` ability now always registered (no opt-in checkbox required) and marked `destructive: true`, so compliant AI tools must prompt for confirmation before running it.
+* Removed: "Enable write abilities" checkbox and `site_chat_write_abilities` option.
+
+= 2.5.2 =
+* Fixed: `$input = null` default in abilities execute callbacks for PHP 8 compatibility.
+
+= 2.5.1 =
+* Fixed: `meta.mcp.public` key in abilities registration.
+
+= 2.5.0 =
+* Added: WordPress Abilities API integration (`site-chat/get-settings`, `site-chat/get-logs`, `site-chat/update-settings`).
+* Added: "Enable write abilities" checkbox in settings.
 
 = 2.4.0 =
 * Fixed: "Cookie check failed" error shown to logged-in users when the page cache serves a stale nonce — nonce now uses a custom action and is sent in the request body instead of the X-WP-Nonce header, bypassing WordPress cookie authentication entirely.
@@ -157,6 +186,9 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 * Initial release.
 
 == Upgrade Notice ==
+
+= 2.5.5 =
+Fixes the "Invalid request" chat error on sites behind a CDN or full-page cache. Recommended update.
 
 = 2.3.0 =
 Adds content caching — reduces database load significantly. Cache is cleared automatically on post save.

@@ -3,7 +3,7 @@
  * Plugin Name:       AI Site Chat
  * Plugin URI:        https://miriamschwab.me/plugins/site-chat
  * Description:       Adds an AI-powered floating chat widget to your site. Visitors can ask questions and get answers based on your published content, powered by Claude.
- * Version:           2.5.2
+ * Version:           2.5.5
  * Author:            Miriam Schwab
  * Author URI:        https://miriamschwab.me
  * License:           GPL-2.0-or-later
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SITE_CHAT_VERSION', '2.5.2' );
+define( 'SITE_CHAT_VERSION', '2.5.5' );
 define( 'SITE_CHAT_MAX_CONTEXT_CHARS', 200000 );
 define( 'SITE_CHAT_MAX_POST_CONTENT_CHARS', 1500 );
 
@@ -156,9 +156,6 @@ add_action( 'admin_init', function () {
 		'sanitize_callback' => function ( $val ) {
 			return esc_url_raw( mb_substr( $val, 0, 500 ) );
 		},
-	] );
-	register_setting( 'site_chat', 'site_chat_write_abilities', [
-		'sanitize_callback' => 'rest_sanitize_boolean',
 	] );
 } );
 
@@ -314,12 +311,7 @@ function site_chat_settings_page() {
 				<tr>
 					<th scope="row"><?php esc_html_e( 'Abilities API', 'site-chat' ); ?></th>
 					<td>
-						<label>
-							<input type="checkbox" name="site_chat_write_abilities" value="1"
-								<?php checked( 1, get_option( 'site_chat_write_abilities', 0 ) ); ?> />
-							<?php esc_html_e( 'Enable write abilities (update settings via AI agents)', 'site-chat' ); ?>
-						</label>
-						<p class="description"><?php esc_html_e( 'Allow AI agents to update chat settings via the WordPress Abilities API. Read access (settings and logs) is always enabled. Requires WordPress 6.9+.', 'site-chat' ); ?></p>
+						<p><?php esc_html_e( 'AI agents can read settings and chat logs, and update settings, via the WordPress Abilities API. The update ability is marked destructive, so compliant AI tools must ask for confirmation before running it. Requires WordPress 6.9+.', 'site-chat' ); ?></p>
 					</td>
 				</tr>
 			</table>
@@ -614,15 +606,11 @@ add_action( 'rest_api_init', function () {
 
 function site_chat_handle_ask( WP_REST_Request $request ) {
 
-	// Custom nonce passed in the request body (not X-WP-Nonce header) so WordPress does
-	// not attempt cookie authentication via rest_cookie_check_errors(), which would return
-	// "Cookie check failed" when a cached page serves a stale wp_rest nonce to a logged-in
-	// user. Rate limiting below is the primary abuse defence.
-	$nonce = sanitize_text_field( (string) $request->get_param( 'nonce' ) );
-	if ( ! wp_verify_nonce( $nonce, 'site_chat_ask' ) ) {
-		return new WP_Error( 'forbidden', __( 'Invalid request.', 'site-chat' ), [ 'status' => 403 ] );
-	}
-
+	// No nonce check: this is a public, read-only, unauthenticated endpoint, so a nonce
+	// provides no CSRF protection (there is no privileged action or session to forge). A
+	// nonce also cannot survive full-page CDN caching — it is baked into HTML the edge holds
+	// for days, but WordPress nonces expire in 12-24h, which produced spurious "Invalid
+	// request" errors. The IP rate limiter below is the primary abuse defence.
 	if ( ! get_option( 'site_chat_enabled', 1 ) ) {
 		return new WP_Error( 'disabled', __( 'Chat is currently disabled.', 'site-chat' ), [ 'status' => 503 ] );
 	}
@@ -740,7 +728,6 @@ add_action( 'wp_footer', function () {
 		return;
 	}
 
-	$nonce            = wp_create_nonce( 'site_chat_ask' );
 	$rest_url         = esc_url( rest_url( 'site-chat/v1/ask' ) );
 	$welcome_text     = esc_js( __( 'Ask me anything about this site', 'site-chat' ) );
 	$contact_url      = esc_js( get_option( 'site_chat_contact_url', '' ) );
@@ -1257,7 +1244,7 @@ add_action( 'wp_footer', function () {
 		fetch('<?php echo $rest_url; ?>', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ question: q, nonce: '<?php echo esc_js( $nonce ); ?>' })
+			body: JSON.stringify({ question: q })
 		})
 		.then(function (res) { return res.json().then(function (d) { return { ok: res.ok, data: d }; }); })
 		.then(function (r) {
