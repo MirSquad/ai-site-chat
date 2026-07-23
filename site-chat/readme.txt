@@ -4,7 +4,7 @@ Tags: ai, chat, chatbot, claude, anthropic
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.5.5
+Stable tag: 2.5.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -88,6 +88,11 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 2. Settings > Site Chat — API key, rate limit, and custom instructions.
 
 == Changelog ==
+
+= 2.5.6 =
+* Fixed: Raw Markdown appearing in chat answers. A link wrapped in bold (`**[title](url)**`) rendered its Markdown source as literal text, because bold content was inserted as plain text instead of being parsed. Bold, italic and link text are now rendered recursively.
+* Added: Markdown headings, numbered lists, nested lists, italics, inline code, blockquotes and horizontal rules are now rendered instead of appearing as raw Markdown.
+* Changed: System prompt now asks for lighter formatting — no headings, tables or code blocks — since answers appear in a narrow chat bubble.
 
 = 2.5.5 =
 * Fixed: Chat no longer returns "Invalid request" on CDN/full-page-cached sites. The request nonce was baked into cached HTML that edge caches hold for days, but WordPress nonces expire in 12-24 hours, so the stale nonce failed verification. Removed the nonce entirely — this is a public, read-only, unauthenticated endpoint where a nonce adds no CSRF protection; the IP rate limiter remains the abuse defence.

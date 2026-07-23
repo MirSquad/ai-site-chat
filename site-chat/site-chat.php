@@ -3,7 +3,7 @@
  * Plugin Name:       AI Site Chat
  * Plugin URI:        https://miriamschwab.me/plugins/site-chat
  * Description:       Adds an AI-powered floating chat widget to your site. Visitors can ask questions and get answers based on your published content, powered by Claude.
- * Version:           2.5.5
+ * Version:           2.5.6
  * Author:            Miriam Schwab
  * Author URI:        https://miriamschwab.me
  * License:           GPL-2.0-or-later
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SITE_CHAT_VERSION', '2.5.5' );
+define( 'SITE_CHAT_VERSION', '2.5.6' );
 define( 'SITE_CHAT_MAX_CONTEXT_CHARS', 200000 );
 define( 'SITE_CHAT_MAX_POST_CONTENT_CHARS', 1500 );
 
@@ -654,7 +654,10 @@ function site_chat_handle_ask( WP_REST_Request $request ) {
 	}
 
 	$system .= ' Answer questions about the site and its content.'
-		. ' Be conversational, concise, and direct. You may use Markdown formatting (bold, bullet lists, links).'
+		. ' Be conversational, concise, and direct.'
+		. ' You may use Markdown formatting, but keep it light: bold, bullet lists and links only.'
+		. ' Do not use headings, tables, or code blocks — answers appear in a narrow chat bubble.'
+		. ' Do not wrap a link in bold.'
 		. ' Only answer based on the site content provided below.'
 		. ' If a question is not covered by the site content, say so briefly.'
 		. ' Never make things up.'
@@ -914,15 +917,42 @@ add_action( 'wp_footer', function () {
 [data-theme="dark"] .sc-ai { background: rgba(255,255,255,0.08); color: #F0F0EE; }
 @media (prefers-color-scheme: dark) { .sc-ai { background: rgba(255,255,255,0.08); color: #F0F0EE; } }
 
-.sc-ai a { color: #B52B00; text-decoration: underline; word-break: break-all; }
+/* break-word, not break-all: long bare URLs still wrap, but readable link labels
+   ("Elementor Day @ WCEU") are no longer split mid-word. */
+.sc-ai a { color: #B52B00; text-decoration: underline; overflow-wrap: break-word; }
 .sc-ai a:hover { text-decoration: none; }
 [data-theme="dark"] .sc-ai a { color: #FF8C5A; }
 @media (prefers-color-scheme: dark) { .sc-ai a { color: #FF8C5A; } }
 .sc-ai p { margin: 0 0 6px; }
 .sc-ai p:last-child { margin-bottom: 0; }
-.sc-ai ul { margin: 4px 0 6px 16px; padding: 0; }
+.sc-ai ul, .sc-ai ol { margin: 4px 0 6px 18px; padding: 0; }
+.sc-ai ul ul, .sc-ai ul ol, .sc-ai ol ul, .sc-ai ol ol { margin: 2px 0 2px 16px; }
 .sc-ai li { margin-bottom: 2px; }
 .sc-ai strong { font-weight: 600; }
+.sc-ai em { font-style: italic; }
+
+.sc-ai .sc-h1, .sc-ai .sc-h2 { margin: 10px 0 4px; font-weight: 700; line-height: 1.35; }
+.sc-ai .sc-h1 { font-size: 15px; }
+.sc-ai .sc-h2 { font-size: 14px; }
+.sc-ai > .sc-h1:first-child, .sc-ai > .sc-h2:first-child { margin-top: 0; }
+
+.sc-ai code {
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 0.92em;
+	background: rgba(0,0,0,0.07);
+	padding: 1px 4px;
+	border-radius: 3px;
+}
+[data-theme="dark"] .sc-ai code { background: rgba(255,255,255,0.14); }
+@media (prefers-color-scheme: dark) { .sc-ai code { background: rgba(255,255,255,0.14); } }
+
+.sc-ai hr { border: 0; border-top: 1px solid rgba(0,0,0,0.12); margin: 8px 0; }
+[data-theme="dark"] .sc-ai hr { border-top-color: rgba(255,255,255,0.18); }
+@media (prefers-color-scheme: dark) { .sc-ai hr { border-top-color: rgba(255,255,255,0.18); } }
+
+.sc-ai .sc-quote { padding-left: 8px; border-left: 2px solid rgba(0,0,0,0.15); opacity: 0.9; }
+[data-theme="dark"] .sc-ai .sc-quote { border-left-color: rgba(255,255,255,0.2); }
+@media (prefers-color-scheme: dark) { .sc-ai .sc-quote { border-left-color: rgba(255,255,255,0.2); } }
 
 .sc-error {
 	background: rgba(181,43,0,0.08);
@@ -1096,28 +1126,39 @@ add_action( 'wp_footer', function () {
 		toggle.focus();
 	}
 
-	// Renders inline Markdown: **bold**, [text](url), bare https:// URLs.
+	// Renders inline Markdown: **bold**, *italic*, `code`, [text](url), bare https:// URLs.
+	// Bold, italic and link text are rendered recursively, so nested formatting such as
+	// **[label](url)** produces a real link rather than literal Markdown.
 	function renderInline(el, text) {
-		var pattern = /\*\*(.+?)\*\*|\[([^\]]+)\]\((https?:\/\/[^)]+)\)|(https?:\/\/[^\s]+)/g;
+		var pattern = /\*\*([\s\S]+?)\*\*|`([^`]+?)`|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|\*([^\s*][^*\n]*?[^\s*]|[^\s*])\*|(https?:\/\/[^\s]+)/g;
 		var last = 0, match;
 		while ( (match = pattern.exec(text)) !== null ) {
 			if (match.index > last) el.appendChild(document.createTextNode(text.slice(last, match.index)));
 			if (match[1] !== undefined) {
-				var s = document.createElement('strong');
-				s.textContent = match[1];
-				el.appendChild(s);
+				var strong = document.createElement('strong');
+				renderInline(strong, match[1]);
+				el.appendChild(strong);
 			} else if (match[2] !== undefined) {
+				var code = document.createElement('code');
+				code.textContent = match[2];
+				el.appendChild(code);
+			} else if (match[3] !== undefined) {
 				var a = document.createElement('a');
-				a.href = match[3]; a.textContent = match[2];
+				a.href = match[4];
+				renderInline(a, match[3]);
 				a.target = '_blank'; a.rel = 'noopener noreferrer';
 				el.appendChild(a);
+			} else if (match[5] !== undefined) {
+				var em = document.createElement('em');
+				renderInline(em, match[5]);
+				el.appendChild(em);
 			} else {
-				var url = match[4].replace(/[.,;:!?)"']+$/, '');
+				var url = match[6].replace(/[.,;:!?)"']+$/, '');
 				var a2 = document.createElement('a');
 				a2.href = url; a2.textContent = url;
 				a2.target = '_blank'; a2.rel = 'noopener noreferrer';
 				el.appendChild(a2);
-				var trail = match[4].slice(url.length);
+				var trail = match[6].slice(url.length);
 				if (trail) el.appendChild(document.createTextNode(trail));
 			}
 			last = match.index + match[0].length;
@@ -1125,24 +1166,73 @@ add_action( 'wp_footer', function () {
 		if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
 	}
 
-	// Renders Markdown blocks: bullet lists, blank-line paragraphs, inline formatting.
+	// Returns the list element a new item at this indent/type belongs in, opening
+	// or closing nested lists as needed. `stack` tracks the open lists, outermost first.
+	function listFor(el, stack, indent, type, start) {
+		while (stack.length && indent < stack[stack.length - 1].indent) stack.pop();
+		var top = stack.length ? stack[stack.length - 1] : null;
+		if (top && indent === top.indent) {
+			if (top.type === type) return top.el;
+			stack.pop();
+			top = stack.length ? stack[stack.length - 1] : null;
+		}
+		var listEl = document.createElement(type);
+		if (type === 'ol' && start > 1) listEl.setAttribute('start', start);
+		if (top && top.el.lastChild) {
+			top.el.lastChild.appendChild(listEl);
+		} else {
+			el.appendChild(listEl);
+		}
+		stack.push({ indent: indent, el: listEl, type: type });
+		return listEl;
+	}
+
+	// Renders Markdown blocks: headings, bullet and numbered lists (nestable),
+	// blockquotes, horizontal rules, paragraphs, and inline formatting.
 	function renderMarkdown(el, text) {
 		var lines = text.split('\n');
-		var list = null;
+		var stack = [];
 		for (var i = 0; i < lines.length; i++) {
 			var line = lines[i];
-			if (/^[-*] /.test(line)) {
-				if ( ! list) { list = document.createElement('ul'); el.appendChild(list); }
-				var li = document.createElement('li');
-				renderInline(li, line.replace(/^[-*] /, ''));
-				list.appendChild(li);
-			} else {
-				list = null;
-				if (line.trim() === '') continue;
-				var p = document.createElement('p');
-				renderInline(p, line);
-				el.appendChild(p);
+			var indent = line.length - line.replace(/^\s+/, '').length;
+			var body = line.slice(indent);
+
+			if (body === '') { stack = []; continue; }
+
+			if (/^([-*_])\1{2,}\s*$/.test(body)) {
+				stack = [];
+				el.appendChild(document.createElement('hr'));
+				continue;
 			}
+
+			var heading = /^(#{1,6})\s+(.*)$/.exec(body);
+			if (heading) {
+				stack = [];
+				var h = document.createElement('p');
+				h.className = 1 === heading[1].length ? 'sc-h1' : 'sc-h2';
+				renderInline(h, heading[2]);
+				el.appendChild(h);
+				continue;
+			}
+
+			var bullet = /^[-*+]\s+(.*)$/.exec(body);
+			var ordered = /^(\d+)[.)]\s+(.*)$/.exec(body);
+			if (bullet || ordered) {
+				var list = ordered
+					? listFor(el, stack, indent, 'ol', parseInt(ordered[1], 10))
+					: listFor(el, stack, indent, 'ul', 1);
+				var li = document.createElement('li');
+				renderInline(li, ordered ? ordered[2] : bullet[1]);
+				list.appendChild(li);
+				continue;
+			}
+
+			stack = [];
+			var quote = /^>\s?(.*)$/.exec(body);
+			var p = document.createElement('p');
+			if (quote) p.className = 'sc-quote';
+			renderInline(p, quote ? quote[1] : body);
+			el.appendChild(p);
 		}
 	}
 
