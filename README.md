@@ -52,6 +52,10 @@ You'll need an [Anthropic API key](https://console.anthropic.com/) — the plugi
 | Contact URL | — | CTA link shown after conversation |
 | Newsletter URL | — | CTA link shown after conversation |
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
+
 ## Requirements
 
 - WordPress 6.0+

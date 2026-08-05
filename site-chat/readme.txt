@@ -89,15 +89,15 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 
 == Changelog ==
 
-= 2.5.7 =
+= 2.5.7 - 2026-08-05 =
 * Hardening: all chat-widget output is now explicitly escaped, and the conversation-log database queries are safely prepared. WordPress coding-standards cleanup. No changes to behavior.
 
-= 2.5.6 =
+= 2.5.6 - 2026-07-23 =
 * Fixed: Raw Markdown appearing in chat answers. A link wrapped in bold (`**[title](url)**`) rendered its Markdown source as literal text, because bold content was inserted as plain text instead of being parsed. Bold, italic and link text are now rendered recursively.
 * Added: Markdown headings, numbered lists, nested lists, italics, inline code, blockquotes and horizontal rules are now rendered instead of appearing as raw Markdown.
 * Changed: System prompt now asks for lighter formatting — no headings, tables or code blocks — since answers appear in a narrow chat bubble.
 
-= 2.5.5 =
+= 2.5.5 - 2026-07-15 =
 * Fixed: Chat no longer returns "Invalid request" on CDN/full-page-cached sites. The request nonce was baked into cached HTML that edge caches hold for days, but WordPress nonces expire in 12-24 hours, so the stale nonce failed verification. Removed the nonce entirely — this is a public, read-only, unauthenticated endpoint where a nonce adds no CSRF protection; the IP rate limiter remains the abuse defence.
 
 = 2.5.4 =
@@ -107,7 +107,7 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 * Changed: `site-chat/update-settings` ability now always registered (no opt-in checkbox required) and marked `destructive: true`, so compliant AI tools must prompt for confirmation before running it.
 * Removed: "Enable write abilities" checkbox and `site_chat_write_abilities` option.
 
-= 2.5.2 =
+= 2.5.2 - 2026-06-01 =
 * Fixed: `$input = null` default in abilities execute callbacks for PHP 8 compatibility.
 
 = 2.5.1 =
@@ -117,10 +117,10 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 * Added: WordPress Abilities API integration (`site-chat/get-settings`, `site-chat/get-logs`, `site-chat/update-settings`).
 * Added: "Enable write abilities" checkbox in settings.
 
-= 2.4.0 =
+= 2.4.0 - 2026-05-31 =
 * Fixed: "Cookie check failed" error shown to logged-in users when the page cache serves a stale nonce — nonce now uses a custom action and is sent in the request body instead of the X-WP-Nonce header, bypassing WordPress cookie authentication entirely.
 
-= 2.3.0 =
+= 2.3.0 - 2026-05-21 =
 * Added: Content index caching — site content is cached for 12 hours so database queries run once per cache period rather than on every chat request.
 * Added: Cache is automatically cleared whenever a post is saved or published, so new content is available immediately without waiting for the cache to expire.
 
