@@ -1,4 +1,13 @@
 <?php
+/**
+ * Uninstall handler for AI Site Chat.
+ *
+ * Runs when the plugin is deleted from the WordPress admin; removes all plugin
+ * options, the conversation log table, and per-IP rate-limit transients.
+ *
+ * @package Site_Chat
+ */
+
 if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 	exit;
 }

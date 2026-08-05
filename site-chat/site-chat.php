@@ -3,7 +3,7 @@
  * Plugin Name:       AI Site Chat
  * Plugin URI:        https://miriamschwab.me/plugins/site-chat
  * Description:       Adds an AI-powered floating chat widget to your site. Visitors can ask questions and get answers based on your published content, powered by Claude.
- * Version:           2.5.6
+ * Version:           2.5.7
  * Author:            Miriam Schwab
  * Author URI:        https://miriamschwab.me
  * License:           GPL-2.0-or-later
@@ -12,13 +12,15 @@
  * Domain Path:       /languages
  * Requires at least: 6.0
  * Requires PHP:      7.4
+ *
+ * @package Site_Chat
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SITE_CHAT_VERSION', '2.5.6' );
+define( 'SITE_CHAT_VERSION', '2.5.7' );
 define( 'SITE_CHAT_MAX_CONTEXT_CHARS', 200000 );
 define( 'SITE_CHAT_MAX_POST_CONTENT_CHARS', 1500 );
 
@@ -31,10 +33,20 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/abilities.php';
 register_activation_hook( __FILE__, 'site_chat_activate' );
 register_deactivation_hook( __FILE__, 'site_chat_deactivate' );
 
+/**
+ * Clear the cached content context when the plugin is deactivated.
+ *
+ * @return void
+ */
 function site_chat_deactivate() {
 	delete_transient( 'site_chat_context_cache' );
 }
 
+/**
+ * Create the conversation log table on activation.
+ *
+ * @return void
+ */
 function site_chat_activate() {
 	global $wpdb;
 	$table   = $wpdb->prefix . 'site_chat_log';
@@ -55,121 +67,187 @@ function site_chat_activate() {
 // i18n
 // ---------------------------------------------------------------------------
 
-add_action( 'init', function () {
-	load_plugin_textdomain( 'site-chat', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
-} );
+add_action(
+	'init',
+	function () {
+		load_plugin_textdomain( 'site-chat', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+	}
+);
 
 // ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
 
-add_action( 'admin_menu', function () {
-	add_options_page(
-		__( 'AI Site Chat', 'site-chat' ),
-		__( 'AI Site Chat', 'site-chat' ),
-		'manage_options',
-		'site-chat',
-		'site_chat_settings_page'
-	);
-	add_options_page(
-		__( 'AI Site Chat — Chat Log', 'site-chat' ),
-		__( 'AI Site Chat Log', 'site-chat' ),
-		'manage_options',
-		'site-chat-log',
-		'site_chat_log_page'
-	);
-} );
+add_action(
+	'admin_menu',
+	function () {
+		add_options_page(
+			__( 'AI Site Chat', 'site-chat' ),
+			__( 'AI Site Chat', 'site-chat' ),
+			'manage_options',
+			'site-chat',
+			'site_chat_settings_page'
+		);
+		add_options_page(
+			__( 'AI Site Chat — Chat Log', 'site-chat' ),
+			__( 'AI Site Chat Log', 'site-chat' ),
+			'manage_options',
+			'site-chat-log',
+			'site_chat_log_page'
+		);
+	}
+);
 
-add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), function ( $links ) {
-	$settings_link = '<a href="' . esc_url( admin_url( 'options-general.php?page=site-chat' ) ) . '">' . esc_html__( 'Settings', 'site-chat' ) . '</a>';
-	array_unshift( $links, $settings_link );
-	return $links;
-} );
-
-add_filter( 'plugin_row_meta', function( $links, $file ) {
-	if ( plugin_basename( __FILE__ ) !== $file ) {
+add_filter(
+	'plugin_action_links_' . plugin_basename( __FILE__ ),
+	function ( $links ) {
+		$settings_link = '<a href="' . esc_url( admin_url( 'options-general.php?page=site-chat' ) ) . '">' . esc_html__( 'Settings', 'site-chat' ) . '</a>';
+		array_unshift( $links, $settings_link );
 		return $links;
 	}
-	$links[] = '<a href="' . esc_url( 'https://miriamschwab.me/plugins/site-chat' ) . '" target="_blank">' . esc_html__( 'Visit plugin site', 'site-chat' ) . '</a>';
-	return $links;
-}, 10, 2 );
+);
+
+add_filter(
+	'plugin_row_meta',
+	function ( $links, $file ) {
+		if ( plugin_basename( __FILE__ ) !== $file ) {
+			return $links;
+		}
+		$links[] = '<a href="' . esc_url( 'https://miriamschwab.me/plugins/site-chat' ) . '" target="_blank">' . esc_html__( 'Visit plugin site', 'site-chat' ) . '</a>';
+		return $links;
+	},
+	10,
+	2
+);
 
 // Ensure DB table exists — runs dbDelta once per version bump, covers installs that
 // bypassed the activation hook (e.g. manual file replacement during updates).
-add_action( 'admin_init', function () {
-	if ( get_option( 'site_chat_db_version' ) !== SITE_CHAT_VERSION ) {
-		site_chat_activate();
-		update_option( 'site_chat_db_version', SITE_CHAT_VERSION );
+add_action(
+	'admin_init',
+	function () {
+		if ( get_option( 'site_chat_db_version' ) !== SITE_CHAT_VERSION ) {
+			site_chat_activate();
+			update_option( 'site_chat_db_version', SITE_CHAT_VERSION );
+		}
 	}
-} );
+);
 
-add_action( 'admin_init', function () {
-	if ( ! function_exists( 'wp_add_privacy_policy_content' ) ) {
-		return;
-	}
-	wp_add_privacy_policy_content(
-		'AI Site Chat',
-		wp_kses_post(
-			sprintf(
+add_action(
+	'admin_init',
+	function () {
+		if ( ! function_exists( 'wp_add_privacy_policy_content' ) ) {
+			return;
+		}
+		wp_add_privacy_policy_content(
+			'AI Site Chat',
+			wp_kses_post(
+				sprintf(
 				/* translators: %s: link to Anthropic privacy policy */
-				__( 'When a visitor submits a question via the AI Site Chat widget, the question and the AI-generated answer may be stored in your site\'s database if the "Log conversations" setting is enabled. Logs are visible only to site administrators and are never shared with third parties. The visitor\'s IP address is stored only as a one-way hash (MD5) for rate-limiting purposes. Questions and site content are sent to the Anthropic API to generate answers; see %s for details.', 'site-chat' ),
-				'<a href="https://www.anthropic.com/privacy" target="_blank" rel="noopener">Anthropic\'s privacy policy</a>'
+					__( 'When a visitor submits a question via the AI Site Chat widget, the question and the AI-generated answer may be stored in your site\'s database if the "Log conversations" setting is enabled. Logs are visible only to site administrators and are never shared with third parties. The visitor\'s IP address is stored only as a one-way hash (MD5) for rate-limiting purposes. Questions and site content are sent to the Anthropic API to generate answers; see %s for details.', 'site-chat' ),
+					'<a href="https://www.anthropic.com/privacy" target="_blank" rel="noopener">Anthropic\'s privacy policy</a>'
+				)
 			)
-		)
-	);
-} );
+		);
+	}
+);
 
-add_action( 'admin_init', function () {
-	register_setting( 'site_chat', 'site_chat_api_key', [
-		'sanitize_callback' => function ( $val ) {
-			return mb_substr( sanitize_text_field( $val ), 0, 200 );
-		},
-	] );
-	register_setting( 'site_chat', 'site_chat_enabled', [
-		'sanitize_callback' => 'rest_sanitize_boolean',
-	] );
-	register_setting( 'site_chat', 'site_chat_rate_limit', [
-		'sanitize_callback' => 'absint',
-	] );
-	register_setting( 'site_chat', 'site_chat_custom_instructions', [
-		'sanitize_callback' => function ( $val ) {
-			return mb_substr( sanitize_textarea_field( $val ), 0, 2000 );
-		},
-	] );
-	register_setting( 'site_chat', 'site_chat_post_types', [
-		'sanitize_callback' => function ( $val ) {
-			if ( ! is_array( $val ) ) {
-				return [];
-			}
-			return array_values( array_map( 'sanitize_key', $val ) );
-		},
-	] );
-	register_setting( 'site_chat', 'site_chat_log_enabled', [
-		'sanitize_callback' => 'rest_sanitize_boolean',
-	] );
-	register_setting( 'site_chat', 'site_chat_contact_url', [
-		'sanitize_callback' => function ( $val ) {
-			return esc_url_raw( mb_substr( $val, 0, 500 ) );
-		},
-	] );
-	register_setting( 'site_chat', 'site_chat_newsletter_url', [
-		'sanitize_callback' => function ( $val ) {
-			return esc_url_raw( mb_substr( $val, 0, 500 ) );
-		},
-	] );
-} );
+add_action(
+	'admin_init',
+	function () {
+		register_setting(
+			'site_chat',
+			'site_chat_api_key',
+			array(
+				'sanitize_callback' => function ( $val ) {
+					return mb_substr( sanitize_text_field( $val ), 0, 200 );
+				},
+			)
+		);
+		register_setting(
+			'site_chat',
+			'site_chat_enabled',
+			array(
+				'sanitize_callback' => 'rest_sanitize_boolean',
+			)
+		);
+		register_setting(
+			'site_chat',
+			'site_chat_rate_limit',
+			array(
+				'sanitize_callback' => 'absint',
+			)
+		);
+		register_setting(
+			'site_chat',
+			'site_chat_custom_instructions',
+			array(
+				'sanitize_callback' => function ( $val ) {
+					return mb_substr( sanitize_textarea_field( $val ), 0, 2000 );
+				},
+			)
+		);
+		register_setting(
+			'site_chat',
+			'site_chat_post_types',
+			array(
+				'sanitize_callback' => function ( $val ) {
+					if ( ! is_array( $val ) ) {
+						return array();
+					}
+					return array_values( array_map( 'sanitize_key', $val ) );
+				},
+			)
+		);
+		register_setting(
+			'site_chat',
+			'site_chat_log_enabled',
+			array(
+				'sanitize_callback' => 'rest_sanitize_boolean',
+			)
+		);
+		register_setting(
+			'site_chat',
+			'site_chat_contact_url',
+			array(
+				'sanitize_callback' => function ( $val ) {
+					return esc_url_raw( mb_substr( $val, 0, 500 ) );
+				},
+			)
+		);
+		register_setting(
+			'site_chat',
+			'site_chat_newsletter_url',
+			array(
+				'sanitize_callback' => function ( $val ) {
+					return esc_url_raw( mb_substr( $val, 0, 500 ) );
+				},
+			)
+		);
+	}
+);
 
 /**
  * Post type slugs that are never useful as chat context.
  * Used to build the default selection — users can override via the settings page.
  */
 function site_chat_excluded_by_default() {
-	return [
-		'attachment', 'elementor_library', 'e-floating-buttons', 'e-landing-page',
-		'acf-taxonomy', 'acf-post-type', 'acf-field-group', 'acf-field',
-		'angie_snippet', 'wp_block', 'wp_template', 'wp_template_part',
-		'wp_navigation', 'wp_font_face', 'wp_font_family',
-	];
+	return array(
+		'attachment',
+		'elementor_library',
+		'e-floating-buttons',
+		'e-landing-page',
+		'acf-taxonomy',
+		'acf-post-type',
+		'acf-field-group',
+		'acf-field',
+		'angie_snippet',
+		'wp_block',
+		'wp_template',
+		'wp_template_part',
+		'wp_navigation',
+		'wp_font_face',
+		'wp_font_family',
+	);
 }
 
 /**
@@ -182,12 +260,23 @@ function site_chat_active_post_types() {
 		return (array) $saved;
 	}
 	$all = array_merge(
-		[ 'post', 'page' ],
-		get_post_types( [ 'show_ui' => true, '_builtin' => false ], 'names' )
+		array( 'post', 'page' ),
+		get_post_types(
+			array(
+				'show_ui'  => true,
+				'_builtin' => false,
+			),
+			'names'
+		)
 	);
 	return array_values( array_diff( $all, site_chat_excluded_by_default() ) );
 }
 
+/**
+ * Render the AI Site Chat settings page.
+ *
+ * @return void
+ */
 function site_chat_settings_page() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return;
@@ -242,12 +331,18 @@ function site_chat_settings_page() {
 					<th scope="row"><?php esc_html_e( 'Content to Index', 'site-chat' ); ?></th>
 					<td>
 						<?php
-						$all_types   = array_merge(
-							[ 'post', 'page' ],
-							get_post_types( [ 'show_ui' => true, '_builtin' => false ], 'names' )
+						$all_types = array_merge(
+							array( 'post', 'page' ),
+							get_post_types(
+								array(
+									'show_ui'  => true,
+									'_builtin' => false,
+								),
+								'names'
+							)
 						);
-						$all_types   = array_values( array_diff( $all_types, [ 'attachment' ] ) );
-						$active      = site_chat_active_post_types();
+						$all_types = array_values( array_diff( $all_types, array( 'attachment' ) ) );
+						$active    = site_chat_active_post_types();
 						foreach ( $all_types as $slug ) {
 							$obj   = get_post_type_object( $slug );
 							$label = $obj ? $obj->labels->name : $slug;
@@ -362,17 +457,23 @@ function site_chat_settings_page() {
 	<?php
 }
 
+/**
+ * Render the chat log admin page, with pagination.
+ *
+ * @return void
+ */
 function site_chat_log_page() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
 	global $wpdb;
-	$table   = $wpdb->prefix . 'site_chat_log';
+	$table    = $wpdb->prefix . 'site_chat_log';
 	$per_page = 50;
-	$page    = max( 1, isset( $_GET['logpage'] ) ? absint( $_GET['logpage'] ) : 1 ); // phpcs:ignore WordPress.Security.NonceVerification
-	$offset  = ( $page - 1 ) * $per_page;
-	$total   = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-	$rows    = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} ORDER BY created_at DESC LIMIT %d OFFSET %d", $per_page, $offset ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	$page     = max( 1, isset( $_GET['logpage'] ) ? absint( $_GET['logpage'] ) : 1 ); // phpcs:ignore WordPress.Security.NonceVerification
+	$offset   = ( $page - 1 ) * $per_page;
+	// $table is a trusted, prefixed table name (not user input); it cannot be passed as a prepared placeholder.
+	$total = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	$rows  = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} ORDER BY created_at DESC LIMIT %d OFFSET %d", $per_page, $offset ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'AI Site Chat — Chat Log', 'site-chat' ); ?></h1>
@@ -380,7 +481,12 @@ function site_chat_log_page() {
 		<?php if ( ! $rows ) : ?>
 			<p><?php esc_html_e( 'No conversations logged yet.', 'site-chat' ); ?></p>
 		<?php else : ?>
-			<p><?php printf( esc_html__( '%d conversations logged.', 'site-chat' ), $total ); ?></p>
+			<p>
+				<?php
+				/* translators: %d: number of conversations logged. */
+				printf( esc_html__( '%d conversations logged.', 'site-chat' ), absint( $total ) );
+				?>
+			</p>
 			<table class="widefat striped">
 				<thead>
 					<tr>
@@ -404,7 +510,13 @@ function site_chat_log_page() {
 			if ( $total_pages > 1 ) {
 				echo '<div style="margin-top:12px">';
 				for ( $i = 1; $i <= $total_pages; $i++ ) {
-					$url = add_query_arg( [ 'page' => 'site-chat-log', 'logpage' => $i ], admin_url( 'options-general.php' ) );
+					$url = add_query_arg(
+						array(
+							'page'    => 'site-chat-log',
+							'logpage' => $i,
+						),
+						admin_url( 'options-general.php' )
+					);
 					if ( $i === $page ) {
 						echo '<strong style="margin-right:6px">' . absint( $i ) . '</strong>';
 					} else {
@@ -427,6 +539,9 @@ function site_chat_log_page() {
  * Recursively extracts plain text from Elementor's _elementor_data JSON.
  * Elementor stores page content as JSON in post meta rather than post_content,
  * so post_content is often empty for Elementor-built pages.
+ *
+ * @param int $post_id Post ID to read `_elementor_data` from.
+ * @return string Extracted plain text, or an empty string when there is no Elementor data.
  */
 function site_chat_extract_elementor_text( $post_id ) {
 	$raw = get_post_meta( $post_id, '_elementor_data', true );
@@ -441,9 +556,15 @@ function site_chat_extract_elementor_text( $post_id ) {
 	return trim( preg_replace( '/\s+/', ' ', $text ) );
 }
 
+/**
+ * Recursively collect visible text from a tree of Elementor elements.
+ *
+ * @param array<int, array<string, mixed>> $elements Elementor element nodes.
+ * @return string Concatenated plain text from the element tree.
+ */
 function site_chat_walk_elementor( array $elements ) {
 	// Common Elementor widget settings keys that contain visible text.
-	$text_keys = [ 'editor', 'title', 'description', 'caption', 'text', 'html', 'content', 'heading' ];
+	$text_keys = array( 'editor', 'title', 'description', 'caption', 'text', 'html', 'content', 'heading' );
 	$text      = '';
 	foreach ( $elements as $el ) {
 		if ( ! empty( $el['settings'] ) && is_array( $el['settings'] ) ) {
@@ -460,13 +581,18 @@ function site_chat_walk_elementor( array $elements ) {
 	return $text;
 }
 
+/**
+ * Build (and cache) the plain-text content index sent to the AI as context.
+ *
+ * @return string Concatenated site content, capped at SITE_CHAT_MAX_CONTEXT_CHARS.
+ */
 function site_chat_get_context() {
 	$cached = get_transient( 'site_chat_context_cache' );
 	if ( false !== $cached ) {
 		return $cached;
 	}
 
-	$parts      = [];
+	$parts      = array();
 	$post_types = site_chat_active_post_types();
 
 	foreach ( $post_types as $type ) {
@@ -483,14 +609,16 @@ function site_chat_get_context() {
 		 */
 		$per_type_limit = (int) apply_filters( 'site_chat_context_posts_limit', -1, $type );
 
-		$posts = get_posts( [
-			'post_type'        => $type,
-			'post_status'      => 'publish',
-			'posts_per_page'   => $per_type_limit,
-			'orderby'          => 'date',
-			'order'            => 'DESC',
-			'suppress_filters' => false,
-		] );
+		$posts = get_posts(
+			array(
+				'post_type'        => $type,
+				'post_status'      => 'publish',
+				'posts_per_page'   => $per_type_limit,
+				'orderby'          => 'date',
+				'order'            => 'DESC',
+				'suppress_filters' => false,
+			)
+		);
 
 		if ( empty( $posts ) ) {
 			continue;
@@ -547,7 +675,7 @@ function site_chat_get_context() {
 				$acf_fields = get_fields( $post->ID );
 				if ( $acf_fields && is_array( $acf_fields ) ) {
 					foreach ( $acf_fields as $field_key => $field_value ) {
-						$field_label = ucwords( str_replace( [ '_', '-' ], ' ', $field_key ) );
+						$field_label = ucwords( str_replace( array( '_', '-' ), ' ', $field_key ) );
 						if ( is_string( $field_value ) && '' !== $field_value ) {
 							$entry .= $field_label . ': ' . $field_value . "\n";
 						} elseif ( is_array( $field_value ) && ! empty( $field_value ) ) {
@@ -576,34 +704,50 @@ function site_chat_get_context() {
 }
 
 // Clear context cache whenever a post is saved so new content appears immediately.
-add_action( 'save_post', function ( $post_id ) {
-	if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
-		return;
+add_action(
+	'save_post',
+	function ( $post_id ) {
+		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
+			return;
+		}
+		delete_transient( 'site_chat_context_cache' );
 	}
-	delete_transient( 'site_chat_context_cache' );
-} );
+);
 
 // ---------------------------------------------------------------------------
 // REST endpoint
 // ---------------------------------------------------------------------------
 
-add_action( 'rest_api_init', function () {
-	register_rest_route( 'site-chat/v1', '/ask', [
-		'methods'             => 'POST',
-		'callback'            => 'site_chat_handle_ask',
-		'permission_callback' => '__return_true',
-		'args'                => [
-			'question' => [
-				'required'          => true,
-				'sanitize_callback' => 'sanitize_text_field',
-				'validate_callback' => function ( $val ) {
-					return is_string( $val ) && strlen( trim( $val ) ) >= 1 && strlen( $val ) <= 500;
-				},
-			],
-		],
-	] );
-} );
+add_action(
+	'rest_api_init',
+	function () {
+		register_rest_route(
+			'site-chat/v1',
+			'/ask',
+			array(
+				'methods'             => 'POST',
+				'callback'            => 'site_chat_handle_ask',
+				'permission_callback' => '__return_true',
+				'args'                => array(
+					'question' => array(
+						'required'          => true,
+						'sanitize_callback' => 'sanitize_text_field',
+						'validate_callback' => function ( $val ) {
+							return is_string( $val ) && strlen( trim( $val ) ) >= 1 && strlen( $val ) <= 500;
+						},
+					),
+				),
+			)
+		);
+	}
+);
 
+/**
+ * Handle a chat question from the public REST endpoint.
+ *
+ * @param WP_REST_Request $request REST request carrying the visitor's question.
+ * @return WP_REST_Response|WP_Error REST response with the AI answer, or an error.
+ */
 function site_chat_handle_ask( WP_REST_Request $request ) {
 
 	// No nonce check: this is a public, read-only, unauthenticated endpoint, so a nonce
@@ -612,7 +756,7 @@ function site_chat_handle_ask( WP_REST_Request $request ) {
 	// for days, but WordPress nonces expire in 12-24h, which produced spurious "Invalid
 	// request" errors. The IP rate limiter below is the primary abuse defence.
 	if ( ! get_option( 'site_chat_enabled', 1 ) ) {
-		return new WP_Error( 'disabled', __( 'Chat is currently disabled.', 'site-chat' ), [ 'status' => 503 ] );
+		return new WP_Error( 'disabled', __( 'Chat is currently disabled.', 'site-chat' ), array( 'status' => 503 ) );
 	}
 
 	$ip       = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'unknown';
@@ -631,21 +775,21 @@ function site_chat_handle_ask( WP_REST_Request $request ) {
 				sprintf( "The AI Site Chat rate limit was reached on %s.\n\nLimit: %d requests/hour\nIP hash: %s", home_url(), $limit, md5( $ip ) )
 			);
 		}
-		return new WP_Error( 'rate_limited', __( 'Too many requests. Please try again later.', 'site-chat' ), [ 'status' => 429 ] );
+		return new WP_Error( 'rate_limited', __( 'Too many requests. Please try again later.', 'site-chat' ), array( 'status' => 429 ) );
 	}
 
 	set_transient( $rate_key, $count + 1, HOUR_IN_SECONDS );
 
 	$api_key = get_option( 'site_chat_api_key', '' );
 	if ( ! $api_key ) {
-		return new WP_Error( 'misconfigured', __( 'Chat is not configured yet.', 'site-chat' ), [ 'status' => 503 ] );
+		return new WP_Error( 'misconfigured', __( 'Chat is not configured yet.', 'site-chat' ), array( 'status' => 503 ) );
 	}
 
-	$question    = $request->get_param( 'question' );
-	$context     = site_chat_get_context();
-	$site_name   = get_bloginfo( 'name' );
-	$site_desc   = get_bloginfo( 'description' );
-	$custom      = (string) get_option( 'site_chat_custom_instructions', '' );
+	$question  = $request->get_param( 'question' );
+	$context   = site_chat_get_context();
+	$site_name = get_bloginfo( 'name' );
+	$site_desc = get_bloginfo( 'description' );
+	$custom    = (string) get_option( 'site_chat_custom_instructions', '' );
 
 	$system = sprintf( 'You are a helpful assistant for the website "%s".', $site_name );
 
@@ -672,35 +816,43 @@ function site_chat_handle_ask( WP_REST_Request $request ) {
 
 	$system .= "\n\nSITE CONTENT:\n\n" . $context;
 
-	$response = wp_remote_post( 'https://api.anthropic.com/v1/messages', [
-		'timeout' => 30,
-		'headers' => [
-			'Content-Type'      => 'application/json',
-			'x-api-key'         => $api_key,
-			'anthropic-version' => '2023-06-01',
-		],
-		'body'    => wp_json_encode( [
-			'model'      => 'claude-haiku-4-5-20251001',
-			'max_tokens' => 512,
-			'system'     => $system,
-			'messages'   => [
-				[ 'role' => 'user', 'content' => $question ],
-			],
-		] ),
-	] );
+	$response = wp_remote_post(
+		'https://api.anthropic.com/v1/messages',
+		array(
+			'timeout' => 30,
+			'headers' => array(
+				'Content-Type'      => 'application/json',
+				'x-api-key'         => $api_key,
+				'anthropic-version' => '2023-06-01',
+			),
+			'body'    => wp_json_encode(
+				array(
+					'model'      => 'claude-haiku-4-5-20251001',
+					'max_tokens' => 512,
+					'system'     => $system,
+					'messages'   => array(
+						array(
+							'role'    => 'user',
+							'content' => $question,
+						),
+					),
+				)
+			),
+		)
+	);
 
 	if ( is_wp_error( $response ) ) {
-		return new WP_Error( 'upstream_error', __( 'Could not reach AI service.', 'site-chat' ), [ 'status' => 502 ] );
+		return new WP_Error( 'upstream_error', __( 'Could not reach AI service.', 'site-chat' ), array( 'status' => 502 ) );
 	}
 
 	$body = json_decode( wp_remote_retrieve_body( $response ), true );
 
 	if ( ! empty( $body['error'] ) ) {
-		return new WP_Error( 'upstream_error', __( 'AI service returned an error.', 'site-chat' ), [ 'status' => 502 ] );
+		return new WP_Error( 'upstream_error', __( 'AI service returned an error.', 'site-chat' ), array( 'status' => 502 ) );
 	}
 
 	if ( empty( $body['content'][0]['text'] ) ) {
-		return new WP_Error( 'upstream_error', __( 'Unexpected response from AI service.', 'site-chat' ), [ 'status' => 502 ] );
+		return new WP_Error( 'upstream_error', __( 'Unexpected response from AI service.', 'site-chat' ), array( 'status' => 502 ) );
 	}
 
 	$answer = $body['content'][0]['text'];
@@ -709,35 +861,37 @@ function site_chat_handle_ask( WP_REST_Request $request ) {
 		global $wpdb;
 		$wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 			$wpdb->prefix . 'site_chat_log',
-			[
+			array(
 				'question'   => mb_substr( $question, 0, 1000 ),
 				'answer'     => mb_substr( $answer, 0, 5000 ),
 				'ip_hash'    => md5( $ip ),
 				'created_at' => current_time( 'mysql' ),
-			],
-			[ '%s', '%s', '%s', '%s' ]
+			),
+			array( '%s', '%s', '%s', '%s' )
 		);
 	}
 
-	return rest_ensure_response( [ 'answer' => $answer ] );
+	return rest_ensure_response( array( 'answer' => $answer ) );
 }
 
 // ---------------------------------------------------------------------------
 // Frontend widget — inline output via wp_footer (bypasses CDN asset caching)
 // ---------------------------------------------------------------------------
 
-add_action( 'wp_footer', function () {
-	if ( ! get_option( 'site_chat_enabled', 1 ) ) {
-		return;
-	}
+add_action(
+	'wp_footer',
+	function () {
+		if ( ! get_option( 'site_chat_enabled', 1 ) ) {
+			return;
+		}
 
-	$rest_url         = esc_url( rest_url( 'site-chat/v1/ask' ) );
-	$welcome_text     = esc_js( __( 'Ask me anything about this site', 'site-chat' ) );
-	$contact_url      = esc_js( get_option( 'site_chat_contact_url', '' ) );
-	$newsletter_url   = esc_js( get_option( 'site_chat_newsletter_url', '' ) );
-	$label_contact    = esc_js( __( 'Contact us', 'site-chat' ) );
-	$label_newsletter = esc_js( __( 'Subscribe to newsletter', 'site-chat' ) );
-	?>
+		$rest_url         = esc_url( rest_url( 'site-chat/v1/ask' ) );
+		$welcome_text     = esc_js( __( 'Ask me anything about this site', 'site-chat' ) );
+		$contact_url      = esc_js( get_option( 'site_chat_contact_url', '' ) );
+		$newsletter_url   = esc_js( get_option( 'site_chat_newsletter_url', '' ) );
+		$label_contact    = esc_js( __( 'Contact us', 'site-chat' ) );
+		$label_newsletter = esc_js( __( 'Subscribe to newsletter', 'site-chat' ) );
+		?>
 
 <div id="sc-widget" role="complementary" aria-label="<?php esc_attr_e( 'Chat with this site', 'site-chat' ); ?>">
 
@@ -918,7 +1072,7 @@ add_action( 'wp_footer', function () {
 @media (prefers-color-scheme: dark) { .sc-ai { background: rgba(255,255,255,0.08); color: #F0F0EE; } }
 
 /* break-word, not break-all: long bare URLs still wrap, but readable link labels
-   ("Elementor Day @ WCEU") are no longer split mid-word. */
+	("Elementor Day @ WCEU") are no longer split mid-word. */
 .sc-ai a { color: #B52B00; text-decoration: underline; overflow-wrap: break-word; }
 .sc-ai a:hover { text-decoration: none; }
 [data-theme="dark"] .sc-ai a { color: #FF8C5A; }
@@ -1099,7 +1253,7 @@ add_action( 'wp_footer', function () {
 	var input       = document.getElementById('sc-input');
 	var sendBtn     = document.getElementById('sc-send');
 	var messages    = document.getElementById('sc-messages');
-	var welcomeText = '<?php echo $welcome_text; ?>';
+	var welcomeText = '<?php echo esc_js( $welcome_text ); ?>';
 
 	var isOpen    = false;
 	var isLoading = false;
@@ -1236,10 +1390,10 @@ add_action( 'wp_footer', function () {
 		}
 	}
 
-	var contactUrl      = '<?php echo $contact_url; ?>';
-	var newsletterUrl   = '<?php echo $newsletter_url; ?>';
-	var labelContact    = '<?php echo $label_contact; ?>';
-	var labelNewsletter = '<?php echo $label_newsletter; ?>';
+	var contactUrl      = '<?php echo esc_js( $contact_url ); ?>';
+	var newsletterUrl   = '<?php echo esc_js( $newsletter_url ); ?>';
+	var labelContact    = '<?php echo esc_js( $label_contact ); ?>';
+	var labelNewsletter = '<?php echo esc_js( $label_newsletter ); ?>';
 
 	function addMsg(text, type) {
 		var el = document.createElement('div');
@@ -1331,7 +1485,7 @@ add_action( 'wp_footer', function () {
 		addMsg(q, 'user');
 		showTyping();
 
-		fetch('<?php echo $rest_url; ?>', {
+		fetch('<?php echo esc_js( $rest_url ); ?>', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ question: q })
@@ -1372,5 +1526,6 @@ add_action( 'wp_footer', function () {
 })();
 </script>
 
-	<?php
-} );
+		<?php
+	}
+);

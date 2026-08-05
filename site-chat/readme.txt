@@ -4,7 +4,7 @@ Tags: ai, chat, chatbot, claude, anthropic
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.5.6
+Stable tag: 2.5.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -88,6 +88,9 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 2. Settings > Site Chat — API key, rate limit, and custom instructions.
 
 == Changelog ==
+
+= 2.5.7 =
+* Hardening: all chat-widget output is now explicitly escaped, and the conversation-log database queries are safely prepared. WordPress coding-standards cleanup. No changes to behavior.
 
 = 2.5.6 =
 * Fixed: Raw Markdown appearing in chat answers. A link wrapped in bold (`**[title](url)**`) rendered its Markdown source as literal text, because bold content was inserted as plain text instead of being parsed. Bold, italic and link text are now rendered recursively.
