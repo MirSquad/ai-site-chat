@@ -4,7 +4,7 @@ Tags: ai, chat, chatbot, claude, anthropic
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.5.7
+Stable tag: 2.5.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -88,6 +88,9 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 2. Settings > Site Chat — API key, rate limit, and custom instructions.
 
 == Changelog ==
+
+= 2.5.8 - 2026-08-10 =
+* Changed: Shortened the Abilities API settings description to a plain summary of what's readable and writable.
 
 = 2.5.7 - 2026-08-05 =
 * Hardening: all chat-widget output is now explicitly escaped, and the conversation-log database queries are safely prepared. WordPress coding-standards cleanup. No changes to behavior.

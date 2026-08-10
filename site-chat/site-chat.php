@@ -3,7 +3,7 @@
  * Plugin Name:       AI Site Chat
  * Plugin URI:        https://miriamschwab.me/plugins/site-chat
  * Description:       Adds an AI-powered floating chat widget to your site. Visitors can ask questions and get answers based on your published content, powered by Claude.
- * Version:           2.5.7
+ * Version:           2.5.8
  * Author:            Miriam Schwab
  * Author URI:        https://miriamschwab.me
  * License:           GPL-2.0-or-later
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SITE_CHAT_VERSION', '2.5.7' );
+define( 'SITE_CHAT_VERSION', '2.5.8' );
 define( 'SITE_CHAT_MAX_CONTEXT_CHARS', 200000 );
 define( 'SITE_CHAT_MAX_POST_CONTENT_CHARS', 1500 );
 
@@ -406,7 +406,7 @@ function site_chat_settings_page() {
 				<tr>
 					<th scope="row"><?php esc_html_e( 'Abilities API', 'site-chat' ); ?></th>
 					<td>
-						<p><?php esc_html_e( 'AI agents can read settings and chat logs, and update settings, via the WordPress Abilities API. The update ability is marked destructive, so compliant AI tools must ask for confirmation before running it. Requires WordPress 6.9+.', 'site-chat' ); ?></p>
+						<p><?php esc_html_e( 'AI agents can read settings and chat logs, and update settings, via the WordPress Abilities API. Requires WordPress 6.9+.', 'site-chat' ); ?></p>
 					</td>
 				</tr>
 			</table>

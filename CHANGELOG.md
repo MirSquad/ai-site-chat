@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.5.8 — 2026-08-10
+
+- Changed: Shortened the Abilities API settings description to a plain summary of what's readable and writable.
+
 ## 2.5.7 — 2026-08-05
 
 - Hardening: all chat-widget output is now explicitly escaped, and the conversation-log database queries are safely prepared. WordPress coding-standards cleanup. No changes to behavior.
