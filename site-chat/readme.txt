@@ -4,7 +4,7 @@ Tags: ai, chat, chatbot, claude, anthropic
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.5.8
+Stable tag: 2.6.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -88,6 +88,14 @@ Yes. The widget CSS and JS are output inline via `wp_footer` to bypass CDN cachi
 2. Settings > Site Chat — API key, rate limit, and custom instructions.
 
 == Changelog ==
+
+= 2.6.1 - 2026-08-28 =
+* Added: Chat log answers now render their Markdown — bold, italics, inline code, links, headings, lists, blockquotes and rules — instead of showing raw syntax, matching how visitors saw the answer in the chat widget. Collapsed previews show clean plain text.
+
+= 2.6.0 - 2026-08-28 =
+* Added: Chat log entries now expand to their full text. Each question and answer shows a short preview with a "Show full text" toggle that reveals the complete conversation, line breaks and all.
+* Fixed: Answers were cut off at 300 characters in the log table with no way to read the rest.
+* Changed: Raised the log storage limits so long conversations are kept in full — questions to 2,000 characters and answers to 10,000 (previously 1,000 and 5,000).
 
 = 2.5.8 - 2026-08-10 =
 * Changed: Shortened the Abilities API settings description to a plain summary of what's readable and writable.

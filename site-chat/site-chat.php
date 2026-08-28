@@ -3,7 +3,7 @@
  * Plugin Name:       AI Site Chat
  * Plugin URI:        https://miriamschwab.me/plugins/site-chat
  * Description:       Adds an AI-powered floating chat widget to your site. Visitors can ask questions and get answers based on your published content, powered by Claude.
- * Version:           2.5.8
+ * Version:           2.6.1
  * Author:            Miriam Schwab
  * Author URI:        https://miriamschwab.me
  * License:           GPL-2.0-or-later
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SITE_CHAT_VERSION', '2.5.8' );
+define( 'SITE_CHAT_VERSION', '2.6.1' );
 define( 'SITE_CHAT_MAX_CONTEXT_CHARS', 200000 );
 define( 'SITE_CHAT_MAX_POST_CONTENT_CHARS', 1500 );
 
@@ -458,6 +458,293 @@ function site_chat_settings_page() {
 }
 
 /**
+ * HTML allowed in rendered chat log entries.
+ *
+ * @return array<string, array<string, array<mixed>>> wp_kses allowlist.
+ */
+function site_chat_log_allowed_html() {
+	return array(
+		'p'          => array( 'class' => array() ),
+		'strong'     => array(),
+		'em'         => array(),
+		'code'       => array(),
+		'a'          => array(
+			'href'   => array(),
+			'target' => array(),
+			'rel'    => array(),
+		),
+		'ul'         => array(),
+		'ol'         => array( 'start' => array() ),
+		'li'         => array(),
+		'blockquote' => array(),
+		'hr'         => array(),
+	);
+}
+
+/**
+ * Build a safe link, or fall back to the label alone if the URL is rejected.
+ *
+ * @param string $url        Raw URL from the logged text.
+ * @param string $label_html Already-escaped link text.
+ * @return string HTML.
+ */
+function site_chat_log_link( $url, $label_html ) {
+	$safe = esc_url( $url );
+	if ( '' === $safe ) {
+		return $label_html;
+	}
+	return '<a href="' . $safe . '" target="_blank" rel="noopener noreferrer">' . $label_html . '</a>';
+}
+
+/**
+ * Render inline Markdown to escaped HTML: **bold**, `code`, [text](url), *italic*, bare URLs.
+ *
+ * Mirrors renderInline() in the chat widget, so the log shows answers the way visitors
+ * saw them. Every text run is passed through esc_html() and every URL through esc_url()
+ * as it is emitted, so the returned HTML carries no unescaped input.
+ *
+ * @param string $text  Raw Markdown fragment.
+ * @param int    $depth Recursion guard for nested formatting.
+ * @return string HTML.
+ */
+function site_chat_log_markdown_inline( $text, $depth = 0 ) {
+	$text = (string) $text;
+
+	if ( $depth > 6 ) {
+		return esc_html( $text );
+	}
+
+	$pattern = '#\*\*([\s\S]+?)\*\*|`([^`]+?)`|\[([^\]]+)\]\((https?://[^)\s]+)\)|\*([^\s*][^*\n]*?[^\s*]|[^\s*])\*|(https?://\S+)#u';
+	$found   = preg_match_all( $pattern, $text, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE );
+
+	// Malformed UTF-8 makes preg bail; fall back to plain escaped text.
+	if ( false === $found || ! $found ) {
+		return esc_html( $text );
+	}
+
+	$out  = '';
+	$last = 0;
+
+	foreach ( $matches as $m ) {
+		$offset = $m[0][1];
+		if ( $offset > $last ) {
+			$out .= esc_html( substr( $text, $last, $offset - $last ) );
+		}
+
+		if ( isset( $m[1] ) && -1 !== $m[1][1] ) {
+			$out .= '<strong>' . site_chat_log_markdown_inline( $m[1][0], $depth + 1 ) . '</strong>';
+		} elseif ( isset( $m[2] ) && -1 !== $m[2][1] ) {
+			$out .= '<code>' . esc_html( $m[2][0] ) . '</code>';
+		} elseif ( isset( $m[3] ) && -1 !== $m[3][1] ) {
+			$out .= site_chat_log_link( $m[4][0], site_chat_log_markdown_inline( $m[3][0], $depth + 1 ) );
+		} elseif ( isset( $m[5] ) && -1 !== $m[5][1] ) {
+			$out .= '<em>' . site_chat_log_markdown_inline( $m[5][0], $depth + 1 ) . '</em>';
+		} elseif ( isset( $m[6] ) && -1 !== $m[6][1] ) {
+			// Trailing punctuation belongs to the sentence, not the URL.
+			$url   = preg_replace( '/[.,;:!?)"\']+$/', '', $m[6][0] );
+			$out  .= site_chat_log_link( $url, esc_html( $url ) );
+			$trail = substr( $m[6][0], strlen( $url ) );
+			if ( '' !== $trail ) {
+				$out .= esc_html( $trail );
+			}
+		}
+
+		$last = $offset + strlen( $m[0][0] );
+	}
+
+	if ( $last < strlen( $text ) ) {
+		$out .= esc_html( substr( $text, $last ) );
+	}
+
+	return $out;
+}
+
+/**
+ * Close open list levels, down to a given indent (or all of them).
+ *
+ * List items are emitted with their <li> left open so a nested list can be written
+ * inside it; closing a level therefore closes the item first.
+ *
+ * @param string $out    HTML being built, by reference.
+ * @param array  $stack  Open lists, each array( 'indent' => int, 'type' => string ), outermost first.
+ * @param int    $indent Close levels deeper than this; -1 closes all.
+ * @return void
+ */
+function site_chat_log_close_lists( &$out, &$stack, $indent = -1 ) {
+	$top = end( $stack );
+	while ( $top && ( $indent < 0 || $indent < $top['indent'] ) ) {
+		array_pop( $stack );
+		$out .= '</li></' . $top['type'] . '>';
+		$top  = end( $stack );
+	}
+}
+
+/**
+ * Render Markdown blocks to escaped HTML: headings, lists (nestable), blockquotes,
+ * horizontal rules, paragraphs, and inline formatting.
+ *
+ * Mirrors renderMarkdown() in the chat widget. The result still goes through wp_kses()
+ * at the point of output as a final gate.
+ *
+ * @param string $text Raw logged text.
+ * @return string HTML.
+ */
+function site_chat_log_markdown( $text ) {
+	$lines = preg_split( '/\r\n|\r|\n/', (string) $text );
+	if ( ! $lines ) {
+		return '';
+	}
+
+	$out   = '';
+	$stack = array();
+
+	foreach ( $lines as $line ) {
+		$trimmed = ltrim( $line );
+		$indent  = strlen( $line ) - strlen( $trimmed );
+		$body    = rtrim( $trimmed );
+
+		if ( '' === $body ) {
+			site_chat_log_close_lists( $out, $stack );
+			continue;
+		}
+
+		if ( preg_match( '/^([-*_])\1{2,}\s*$/', $body ) ) {
+			site_chat_log_close_lists( $out, $stack );
+			$out .= '<hr />';
+			continue;
+		}
+
+		if ( preg_match( '/^(#{1,6})\s+(.*)$/', $body, $heading ) ) {
+			site_chat_log_close_lists( $out, $stack );
+			$class = 1 === strlen( $heading[1] ) ? 'sc-log-h1' : 'sc-log-h2';
+			$out  .= '<p class="' . $class . '">' . site_chat_log_markdown_inline( $heading[2] ) . '</p>';
+			continue;
+		}
+
+		$is_bullet  = preg_match( '/^[-*+]\s+(.*)$/', $body, $bullet );
+		$is_ordered = preg_match( '/^(\d+)[.)]\s+(.*)$/', $body, $ordered );
+
+		if ( $is_bullet || $is_ordered ) {
+			$type    = $is_ordered ? 'ol' : 'ul';
+			$content = site_chat_log_markdown_inline( $is_ordered ? $ordered[2] : $bullet[1] );
+
+			site_chat_log_close_lists( $out, $stack, $indent );
+			$top = end( $stack );
+
+			if ( $top && $indent === $top['indent'] ) {
+				// Same level: another item in this list, or a switch to the other list type.
+				if ( $top['type'] === $type ) {
+					$out .= '</li><li>' . $content;
+					continue;
+				}
+				array_pop( $stack );
+				$out .= '</li></' . $top['type'] . '>';
+			}
+
+			$start   = $is_ordered ? (int) $ordered[1] : 1;
+			$attr    = ( 'ol' === $type && $start > 1 ) ? ' start="' . absint( $start ) . '"' : '';
+			$out    .= '<' . $type . $attr . '><li>' . $content;
+			$stack[] = array(
+				'indent' => $indent,
+				'type'   => $type,
+			);
+			continue;
+		}
+
+		site_chat_log_close_lists( $out, $stack );
+
+		if ( preg_match( '/^>\s?(.*)$/', $body, $quote ) ) {
+			$out .= '<blockquote>' . site_chat_log_markdown_inline( $quote[1] ) . '</blockquote>';
+		} else {
+			$out .= '<p>' . site_chat_log_markdown_inline( $body ) . '</p>';
+		}
+	}
+
+	site_chat_log_close_lists( $out, $stack );
+
+	return $out;
+}
+
+/**
+ * Strip Markdown syntax down to readable plain text, for the collapsed preview.
+ *
+ * @param string $text Raw logged text.
+ * @return string Plain text, whitespace collapsed to a single line.
+ */
+function site_chat_log_plain_text( $text ) {
+	$text = (string) $text;
+
+	// Note the '#' delimiters: these patterns contain unescaped forward slashes.
+	$steps = array(
+		'#\[([^\]]+)\]\((?:https?://[^)\s]+)\)#u'         => '$1',  // Links: keep the label.
+		'#^\s*([-*_])\1{2,}\s*$#mu'                       => '',    // Horizontal rules.
+		'#^\s*(?:\#{1,6}\s+|[-*+]\s+|\d+[.)]\s+|>\s?)#mu' => '',   // Block markers.
+	);
+
+	foreach ( $steps as $pattern => $replacement ) {
+		$result = preg_replace( $pattern, $replacement, $text );
+		if ( null !== $result ) {
+			$text = $result;
+		}
+	}
+
+	// Bold markers go before italics, so '**bold**' is not mistaken for an italic run.
+	$text = str_replace( array( '**', '`' ), '', $text );
+
+	$italics = preg_replace( '#\*([^\s*][^*\n]*?[^\s*]|[^\s*])\*#u', '$1', $text );
+	if ( null !== $italics ) {
+		$text = $italics;
+	}
+
+	$flat = preg_replace( '/\s+/u', ' ', $text );
+
+	return trim( null === $flat ? $text : $flat );
+}
+
+/**
+ * Render one chat log cell: a short preview that expands to the full text.
+ *
+ * Logged questions and answers can run to several thousand characters, so each
+ * cell collapses to a plain-text preview and reveals the complete text through
+ * a <details> toggle — the whole conversation stays readable without turning
+ * every table row into a wall of text. No JavaScript involved.
+ *
+ * The expanded text is rendered from Markdown the same way the chat widget renders
+ * it, so the log reads as visitors saw it rather than as raw syntax.
+ *
+ * @param string $text  The logged question or answer.
+ * @param int    $limit Preview length, in characters.
+ * @return void
+ */
+function site_chat_log_text_cell( $text, $limit = 300 ) {
+	$text  = (string) $text;
+	$plain = site_chat_log_plain_text( $text );
+
+	// Short, single-line entries read fine in full — no toggle needed.
+	if ( mb_strlen( $plain ) <= $limit && false === mb_strpos( trim( $text ), "\n" ) ) {
+		echo '<div class="sc-log-text">';
+		echo wp_kses( site_chat_log_markdown( $text ), site_chat_log_allowed_html() );
+		echo '</div>';
+		return;
+	}
+
+	$preview  = mb_substr( $plain, 0, $limit );
+	$ellipsis = mb_strlen( $plain ) > $limit ? '…' : '';
+	?>
+	<details class="sc-log-entry">
+		<summary>
+			<span class="sc-log-preview"><?php echo esc_html( $preview . $ellipsis ); ?></span>
+			<span class="sc-log-toggle sc-log-toggle-show"><?php esc_html_e( 'Show full text', 'site-chat' ); ?></span>
+			<span class="sc-log-toggle sc-log-toggle-hide"><?php esc_html_e( 'Hide full text', 'site-chat' ); ?></span>
+		</summary>
+		<div class="sc-log-text">
+			<?php echo wp_kses( site_chat_log_markdown( $text ), site_chat_log_allowed_html() ); ?>
+		</div>
+	</details>
+	<?php
+}
+
+/**
  * Render the chat log admin page, with pagination.
  *
  * @return void
@@ -477,6 +764,35 @@ function site_chat_log_page() {
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'AI Site Chat — Chat Log', 'site-chat' ); ?></h1>
+		<style>
+			.sc-log-date { width: 140px; white-space: nowrap; }
+			.widefat .sc-log-answer { font-size: 12px; }
+			.widefat td { vertical-align: top; }
+			.sc-log-text { word-break: break-word; }
+			.sc-log-text p, .sc-log-text ul, .sc-log-text ol, .sc-log-text blockquote { margin: 0 0 .7em; }
+			.sc-log-text > *:last-child { margin-bottom: 0; }
+			.sc-log-text ul, .sc-log-text ol { padding-left: 1.6em; }
+			.sc-log-text ul { list-style: disc; }
+			.sc-log-text ol { list-style: decimal; }
+			.sc-log-text li { margin: 0 0 .2em; }
+			.sc-log-text li > ul, .sc-log-text li > ol { margin: .2em 0 0; }
+			.sc-log-text code { background: #f0f0f1; padding: 1px 4px; border-radius: 3px; font-size: .92em; }
+			.sc-log-text blockquote { padding-left: .8em; border-left: 3px solid #c3c4c7; color: #50575e; }
+			.sc-log-text hr { border: 0; border-top: 1px solid #dcdcde; margin: .9em 0; }
+			.sc-log-text .sc-log-h1 { font-size: 1.2em; font-weight: 600; }
+			.sc-log-text .sc-log-h2 { font-weight: 600; }
+			.sc-log-entry > summary { cursor: pointer; list-style: none; }
+			.sc-log-entry > summary::-webkit-details-marker { display: none; }
+			.sc-log-preview { display: block; word-break: break-word; }
+			.sc-log-entry[open] .sc-log-preview { display: none; }
+			.sc-log-toggle { display: inline-block; margin-top: 4px; color: #2271b1; font-size: 12px; }
+			.sc-log-entry .sc-log-toggle-hide { display: none; }
+			.sc-log-entry[open] .sc-log-toggle-show { display: none; }
+			.sc-log-entry[open] .sc-log-toggle-hide { display: inline-block; }
+			.sc-log-toggle-show::after { content: " \25be"; }
+			.sc-log-toggle-hide::after { content: " \25b4"; }
+			.sc-log-toggle:hover { text-decoration: underline; }
+		</style>
 		<p><a href="<?php echo esc_url( admin_url( 'options-general.php?page=site-chat' ) ); ?>"><?php esc_html_e( '← Settings', 'site-chat' ); ?></a></p>
 		<?php if ( ! $rows ) : ?>
 			<p><?php esc_html_e( 'No conversations logged yet.', 'site-chat' ); ?></p>
@@ -490,17 +806,17 @@ function site_chat_log_page() {
 			<table class="widefat striped">
 				<thead>
 					<tr>
-						<th style="width:140px"><?php esc_html_e( 'Date', 'site-chat' ); ?></th>
-						<th><?php esc_html_e( 'Question', 'site-chat' ); ?></th>
+						<th class="sc-log-date"><?php esc_html_e( 'Date', 'site-chat' ); ?></th>
+						<th style="width:30%"><?php esc_html_e( 'Question', 'site-chat' ); ?></th>
 						<th><?php esc_html_e( 'Answer', 'site-chat' ); ?></th>
 					</tr>
 				</thead>
 				<tbody>
 					<?php foreach ( $rows as $row ) : ?>
 					<tr>
-						<td style="white-space:nowrap"><?php echo esc_html( $row->created_at ); ?></td>
-						<td><?php echo esc_html( $row->question ); ?></td>
-						<td style="font-size:12px"><?php echo esc_html( mb_substr( $row->answer, 0, 300 ) ); ?><?php echo mb_strlen( $row->answer ) > 300 ? '…' : ''; ?></td>
+						<td class="sc-log-date"><?php echo esc_html( $row->created_at ); ?></td>
+						<td><?php site_chat_log_text_cell( $row->question ); ?></td>
+						<td class="sc-log-answer"><?php site_chat_log_text_cell( $row->answer ); ?></td>
 					</tr>
 					<?php endforeach; ?>
 				</tbody>
@@ -862,8 +1178,8 @@ function site_chat_handle_ask( WP_REST_Request $request ) {
 		$wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 			$wpdb->prefix . 'site_chat_log',
 			array(
-				'question'   => mb_substr( $question, 0, 1000 ),
-				'answer'     => mb_substr( $answer, 0, 5000 ),
+				'question'   => mb_substr( $question, 0, 2000 ),
+				'answer'     => mb_substr( $answer, 0, 10000 ),
 				'ip_hash'    => md5( $ip ),
 				'created_at' => current_time( 'mysql' ),
 			),
